@@ -130,3 +130,6 @@ dmypy.json
 
 # Twitter Credentials
 creds.txt
+
+# Following lists
+following_lists/
