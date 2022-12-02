@@ -42,7 +42,7 @@ def get_following_lists(client, users):
             continue # we have already pulled this user's following list
 
         user = client.get_user(id = id, user_fields=["public_metrics"])
-        if user.data.public_metrics["following_count"] > 5000:
+        if user.data is not None and user.data.public_metrics["following_count"] > 5000:
             continue # we will ignore this user's following
 
         paginator = tweepy.Paginator(
@@ -112,7 +112,40 @@ def create_full_accounts_list(politicians):
         pickle.dump(accounts_list, f)
 
     
+#%%
+def pull_tweets(client, accounts):
+    for account in accounts:
+        id = account[1]
 
+        completed_files = os.listdir("data/old_tweets")
+        if np.any([str(id) in f for f in completed_files]):
+            continue # we have already pulled this user's tweets
+
+        start = datetime(year=2017,month=10,day=15,hour=0,minute=0,second=0)
+        end = datetime(year=2017,month=12,day=1,hour=0,minute=0,second=0)
+
+        paginator = tweepy.Paginator(
+		    client.get_users_tweets,
+		    id = id, 
+		    start_time = start, 
+            end_time = end,
+            tweet_fields=[
+			"author_id", "created_at", "public_metrics",
+            "lang", "context_annotations"
+            ],
+            user_fields=["username"],
+            max_results=100
+        )
+
+        # dump paginator 
+        filename = "data/old_tweets/" + str(id) + "_tweets_raw_resp.pkl"
+        with open(filename, "wb") as f:
+            pickle.dump(paginator, f)
+        
+        num_pages = len([resp for resp in paginator])
+        time.sleep(num_pages)
+    
+    return
 
 #%%
 ## MAIN 
