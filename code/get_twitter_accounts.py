@@ -117,12 +117,12 @@ def pull_tweets(client, accounts):
     for account in accounts:
         id = account[1]
 
-        completed_files = os.listdir("data/old_tweets")
+        completed_files = os.listdir("data/new_tweets")
         if np.any([str(id) in f for f in completed_files]):
             continue # we have already pulled this user's tweets
 
-        start = datetime(year=2017,month=10,day=15,hour=0,minute=0,second=0)
-        end = datetime(year=2017,month=12,day=1,hour=0,minute=0,second=0)
+        start = datetime(year=2022,month=10,day=15,hour=0,minute=0,second=0)
+        end = datetime(year=2022,month=12,day=1,hour=0,minute=0,second=0)
 
         paginator = tweepy.Paginator(
 		    client.get_users_tweets,
@@ -137,15 +137,21 @@ def pull_tweets(client, accounts):
             max_results=100
         )
 
+        tweets = []
+
+        for rsp in paginator:
+            time.sleep(1)
+            if rsp.data is not None:
+                for tweet in rsp.data:
+                    tweets.append(tweet.data)
+
         # dump paginator 
-        filename = "data/old_tweets/" + str(id) + "_tweets_raw_resp.pkl"
+        filename = "data/new_tweets/" + str(id) + "_tweets.pkl"
         with open(filename, "wb") as f:
-            pickle.dump(paginator, f)
-        
-        num_pages = len([resp for resp in paginator])
-        time.sleep(num_pages)
+            pickle.dump(tweets, f)
     
     return
+
 
 #%%
 ## MAIN 
