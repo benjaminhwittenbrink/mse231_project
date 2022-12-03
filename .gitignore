@@ -133,3 +133,7 @@ creds.txt
 
 # Following lists
 following_lists/
+
+# Tweets from Oct/Nov 2017
+old_tweets/
+new_tweets/
