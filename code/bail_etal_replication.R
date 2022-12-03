@@ -342,3 +342,36 @@ fisher_exact_d <- calc_fishers_exact(
 
 d_itt<-fisher_exact_d$obs
 d_itt_p_value<-mean(fisher_exact_d$null>d_itt)
+
+## Attrition checks (6.1+)
+final_df_d <- final_df_d %>% mutate(wave_5_missing = as.numeric(is.na(endtime_wave_5)))
+final_df_r <- final_df_r %>% mutate(wave_5_missing = as.numeric(is.na(endtime_wave_5)))
+
+run_attrit_model <- function(df){
+  # fit reduced model 
+  reduced_model<-lm(
+    substantive_ideology_scale_wave_1 ~ 
+      wave_5_missing + percent_co_party + political_wave_1 + freq_twitter_wave_1 + 
+      friends_count_wave_1 + strong_partisan + birth_year + family_income + education +
+      gender + ideo_homogeneity_offline + northeast + north_central + south,
+   data=df)
+  
+  # include interactions
+  full_model<-lm(
+    substantive_ideology_scale_wave_1 ~ 
+      wave_5_missing*(percent_co_party + political_wave_1 + freq_twitter_wave_1 + 
+                        friends_count_wave_1 + strong_partisan + birth_year + family_income + education +
+                        gender + ideo_homogeneity_offline + northeast + north_central + south),
+    data=df)
+  
+  return(list(reduced=reduced_model, full=full_model))
+}
+
+attrit_models_d <- run_attrit_model(final_df_d)
+anova(attrit_models_d$reduced, attrit_models_d$full)
+
+attrit_models_r <- run_attrit_model(final_df_r)
+anova(attrit_models_r$reduced, attrit_models_r$full)
+
+## Outliers (6.3)
+
