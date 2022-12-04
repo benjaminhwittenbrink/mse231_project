@@ -9,10 +9,51 @@
 # than are reported in the paper...
 
 library(dplyr)
+library(xtable)
 
 RANDOM_SEED <- 352
 
-df <- readRDS("data/bail_etal_data.rds") 
+df <- readRDS("data/bail_etal_data.rds")
+
+## gen characteristics table
+tab <- df %>% 
+  mutate(age = 2016 - birth_year, 
+         female = as.numeric(gender==2)
+  )
+sum_vars <- c("age", "female", "northeast", "north_central", "south", "west")
+sum_stats <- tibble(
+  all_sample = tab %>% 
+    select(sum_vars) %>% 
+    summarise_all(~ mean(.x, na.rm=TRUE)) %>% unlist(),
+  R_sample = tab %>% filter(party_id_wave_1 == 2) %>% 
+    select(sum_vars) %>% 
+    summarise_all(~ mean(.x, na.rm=TRUE)) %>% unlist(),
+  D_sample = tab %>% filter(party_id_wave_1 == 1) %>% 
+    select(sum_vars) %>% 
+    summarise_all(~ mean(.x, na.rm=TRUE)) %>% unlist()
+)
+paper_sum_stats <- tibble(
+  all_study = c(50.49, 0.52, 0.18, 0.2, 0.39, 0.23),
+  R_study = c(50.72, 0.48, 0.16, 0.18, 0.44, 0.21),
+  D_study = c(50.31, 0.55, 0.21, 0.21, 0.34, 0.24),
+)
+
+sum_stats <- bind_cols(sum_stats, paper_sum_stats)
+sum_stats <- sum_stats %>% select(sort(colnames(sum_stats)))
+addtorow <- list()
+addtorow$pos <- list(0, 0)
+addtorow$command <- c(
+  "& \\multicolumn{2}{c}{All} & \\multicolumn{2}{c}{Democrats} & \\multicolumn{2}{c}{Republicans} \\\\", 
+  "\\cmidrule(lr){2-3} \\cmidule(lr){4-5} \\cmidule(lr){6-7} Replication & Paper  & Replication & Paper  & Replication & Paper \\\\"
+)
+sum_stats_tab <- xtable(sum_stats)
+print(
+  sum_stats_tab,
+  include.colnames=FALSE, include.rownames=FALSE, 
+  add.to.row = addtorow,
+  file = "output/bail_etal_sumstats.tex"
+)
+
 
 ## COMPLIANCE 
 # construct continuous compliance measure 
@@ -285,7 +326,7 @@ r_ests <- bind_rows(
   r_ITT_tab[2,] %>% mutate(complier_sample = "itt")
 )
 fig3_r_ests <- fig3_process_models(final_df_r, r_ests)
-fig3_r <- fig3_plot(fig3_r_ests, "D")
+fig3_r <- fig3_plot(fig3_r_ests, "R")
 ggsave("output/bail_etal_fig3_R.png", plot = fig3_r, width = 10, height = 6)
 fig3_r_ests_tab <- xtable(fig3_r_ests)
 print(fig3_r_ests_tab, file = "output/bail_etal_fig3_R_tab.tex")
