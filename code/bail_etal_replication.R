@@ -9,10 +9,51 @@
 # than are reported in the paper...
 
 library(dplyr)
+library(xtable)
 
 RANDOM_SEED <- 352
 
-df <- readRDS("data/bail_etal_data.rds") 
+df <- readRDS("data/bail_etal_data.rds")
+
+## gen characteristics table
+tab <- df %>% 
+  mutate(age = 2016 - birth_year, 
+         female = as.numeric(gender==2)
+  )
+sum_vars <- c("age", "female", "northeast", "north_central", "south", "west")
+sum_stats <- tibble(
+  all_sample = tab %>% 
+    select(sum_vars) %>% 
+    summarise_all(~ mean(.x, na.rm=TRUE)) %>% unlist(),
+  R_sample = tab %>% filter(party_id_wave_1 == 2) %>% 
+    select(sum_vars) %>% 
+    summarise_all(~ mean(.x, na.rm=TRUE)) %>% unlist(),
+  D_sample = tab %>% filter(party_id_wave_1 == 1) %>% 
+    select(sum_vars) %>% 
+    summarise_all(~ mean(.x, na.rm=TRUE)) %>% unlist()
+)
+paper_sum_stats <- tibble(
+  all_study = c(50.49, 0.52, 0.18, 0.2, 0.39, 0.23),
+  R_study = c(50.72, 0.48, 0.16, 0.18, 0.44, 0.21),
+  D_study = c(50.31, 0.55, 0.21, 0.21, 0.34, 0.24),
+)
+
+sum_stats <- bind_cols(sum_stats, paper_sum_stats)
+sum_stats <- sum_stats %>% select(sort(colnames(sum_stats)))
+addtorow <- list()
+addtorow$pos <- list(0, 0)
+addtorow$command <- c(
+  "& \\multicolumn{2}{c}{All} & \\multicolumn{2}{c}{Democrats} & \\multicolumn{2}{c}{Republicans} \\\\", 
+  "\\cmidrule(lr){2-3} \\cmidule(lr){4-5} \\cmidule(lr){6-7} Replication & Paper  & Replication & Paper  & Replication & Paper \\\\"
+)
+sum_stats_tab <- xtable(sum_stats)
+print(
+  sum_stats_tab,
+  include.colnames=FALSE, include.rownames=FALSE, 
+  add.to.row = addtorow,
+  file = "output/bail_etal_sumstats.tex"
+)
+
 
 ## COMPLIANCE 
 # construct continuous compliance measure 
@@ -148,19 +189,20 @@ run_ITT <- function(df, caption) {
   panderOptions('table.split.table', 300) 
   set.caption(caption) 
   pander(coefficients)
-  return(list(mod = mod))
+  return(mod)
 }
 
 r_ITT <- run_ITT(final_df_r[complete.cases(final_df_r), ], "Intent-to-Treat Model (Republicans)")
 d_ITT <- run_ITT(final_df_d[complete.cases(final_df_d), ], "Intent-to-Treat Model (Democrats)")
+
+r_ITT_tab <- r_ITT %>% summary(cluster="bin_maker") %>% .$coefficients %>% as.data.frame()
+d_ITT_tab <- d_ITT %>% summary(cluster="bin_maker") %>% .$coefficients %>% as.data.frame()
 
 # NOTE: results are not the same!
 
 ## CACE (5.2)
 library(AER)
 # note the authors use library(ivpack) but this is deprecated 
-
-dfs <- list(final_df_d, final_df_r)
 
 run_CACE <- function(df, complier_var) { 
   # filter out rows with missing values 
@@ -171,7 +213,7 @@ run_CACE <- function(df, complier_var) {
       get(complier_var) + substantive_ideology_scale_wave_1 + percent_co_party + 
       friends_count_wave_1 + birth_year + family_income + education + gender + 
       ideo_homogeneity_offline + northeast + north_central + south  + as.factor(bin_maker) |
-      treat + + substantive_ideology_scale_wave_1 + percent_co_party + 
+      treat + substantive_ideology_scale_wave_1 + percent_co_party + 
       friends_count_wave_1 + birth_year + family_income + education + gender + 
       ideo_homogeneity_offline + northeast + north_central + south  + as.factor(bin_maker),
     data = df
@@ -181,20 +223,113 @@ run_CACE <- function(df, complier_var) {
   return(res)
 }
 
+dfs <- list(d = final_df_d, r = final_df_r)
 full_compliance_models <- lapply(dfs, run_CACE, complier_var = "perfect_complier") 
 half_compliance_models <- lapply(dfs, run_CACE, complier_var = "half_complier")
 bot_follower_models <- lapply(dfs, run_CACE, complier_var = "bot_followers")
 
 # combine samples:
-r_models <- bind_rows(
-  full_compliance_models[[2]], half_compliance_models[[2]], bot_follower_models[[2]]
-)
 d_models <- bind_rows(
-  full_compliance_models[[2]], half_compliance_models[[2]], bot_follower_models[[2]]
+  full_compliance_models$d, half_compliance_models$d, bot_follower_models$d
+)
+r_models <- bind_rows(
+  full_compliance_models$r, half_compliance_models$r, bot_follower_models$r
 )
 
-# make plots 
+fig3_process_models <- function(df, ests) { 
+  
+  n_perf_complier <- df %>% filter(perfect_complier == 1) %>% nrow()
+  n_half_complier <- df %>% filter(half_complier == 1) %>% nrow()
+  n_bot_followers <- df %>% filter(bot_followers == 1) %>% nrow()
+  n_itt <- df %>% filter(treat == 1) %>% nrow()
+  
+  sample_factor_labels <- paste0(c(
+    "Fully Compliant Respondents (n=", 
+    "Partially Compliant Respondents (n=", 
+    "Minimally Compliant Respondents (n=", 
+    "Respondents Assigned to Treatment (n="), 
+    c(n_perf_complier, n_half_complier, n_bot_followers, n_itt), ")")
+  
+  ests <- ests %>% mutate(
+    complier_sample = factor(
+      complier_sample, levels = c("perfect_complier", "half_complier", 
+                                  "bot_followers", "itt" ),
+      labels = sample_factor_labels
+    )
+  )
+  colnames(ests) <- c("estimate", "se", "t", "p", "complier_sample")
+  row.names(ests) <- NULL
+  ests <- ests %>% select(complier_sample, everything())
+  return(ests)
+}
 
+library(ggplot2)
+library(xtable)
+
+fig3_plot <- function(ests, party){ 
+  col <- ifelse(party == "D", "blue", "red")
+  tit <- ifelse(party == "D", "Democrats", "Republicans")
+  interval1 <- -qnorm((1-0.9)/2) # 90% multiplier 
+  interval2 <- -qnorm((1-0.95)/2) # 95% multiplier
+  po <- ggplot(ests) +
+    geom_hline(yintercept = 0, colour = gray(1/2), lty = 2) + 
+    geom_point(
+      aes(x = complier_sample, y = estimate),
+      position = position_dodge(width = 1 /2), size = 2, colour = col
+    ) +
+    geom_linerange(
+      aes(
+        x = complier_sample,
+        ymin = estimate - se * interval1,
+        ymax = estimate + se * interval1
+      ), linewidth = 1, position = position_dodge(width = 1 / 2), colour = col
+    ) +
+    geom_linerange(
+      aes(
+        x = complier_sample, y = estimate,
+        ymin = estimate - se * interval2,
+        ymax = estimate + se * interval2
+      ), linewidth = .5, position = position_dodge(width = 1 / 2), colour = col
+    ) + theme(
+      axis.text = element_text(size = 12, face = "bold", colour = "black"),
+      plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      panel.background = element_blank(),
+      axis.title = element_text(size = 12, colour = "black"),
+      legend.position = "none",
+      legend.key = element_blank(),
+      legend.title = element_blank()
+    ) +
+    ylim(c(-1, 1)) + labs(x = "", y = "") + coord_flip() + ggtitle(tit)
+  return(po)
+}
+
+
+## recreate figure 3 
+d_ests <- bind_rows(
+  full_compliance_models$d[2, ],
+  half_compliance_models$d[2, ],
+  bot_follower_models$d[2, ],
+  d_ITT_tab[2,] %>% mutate(complier_sample = "itt")
+)
+fig3_d_ests <- fig3_process_models(final_df_d, d_ests)
+fig3_d <- fig3_plot(fig3_d_ests, "D")
+ggsave("output/bail_etal_fig3_D.png", plot = fig3_d, width = 10, height = 6)
+fig3_d_ests_tab <- xtable(fig3_d_ests)
+print(fig3_d_ests_tab, file = "output/bail_etal_fig3_D_tab.tex")
+
+r_ests <- bind_rows(
+  full_compliance_models$r[2, ],
+  half_compliance_models$r[2, ],
+  bot_follower_models$r[2, ],
+  r_ITT_tab[2,] %>% mutate(complier_sample = "itt")
+)
+fig3_r_ests <- fig3_process_models(final_df_r, r_ests)
+fig3_r <- fig3_plot(fig3_r_ests, "R")
+ggsave("output/bail_etal_fig3_R.png", plot = fig3_r, width = 10, height = 6)
+fig3_r_ests_tab <- xtable(fig3_r_ests)
+print(fig3_r_ests_tab, file = "output/bail_etal_fig3_R_tab.tex")
 
 ## Fisher's exact (ITT w/ no covars) (5.3)
 calc_fishers_exact <- function(outcome, treat, group, B = 1000) { 
@@ -248,3 +383,36 @@ fisher_exact_d <- calc_fishers_exact(
 
 d_itt<-fisher_exact_d$obs
 d_itt_p_value<-mean(fisher_exact_d$null>d_itt)
+
+## Attrition checks (6.1+)
+final_df_d <- final_df_d %>% mutate(wave_5_missing = as.numeric(is.na(endtime_wave_5)))
+final_df_r <- final_df_r %>% mutate(wave_5_missing = as.numeric(is.na(endtime_wave_5)))
+
+run_attrit_model <- function(df){
+  # fit reduced model 
+  reduced_model<-lm(
+    substantive_ideology_scale_wave_1 ~ 
+      wave_5_missing + percent_co_party + political_wave_1 + freq_twitter_wave_1 + 
+      friends_count_wave_1 + strong_partisan + birth_year + family_income + education +
+      gender + ideo_homogeneity_offline + northeast + north_central + south,
+   data=df)
+  
+  # include interactions
+  full_model<-lm(
+    substantive_ideology_scale_wave_1 ~ 
+      wave_5_missing*(percent_co_party + political_wave_1 + freq_twitter_wave_1 + 
+                        friends_count_wave_1 + strong_partisan + birth_year + family_income + education +
+                        gender + ideo_homogeneity_offline + northeast + north_central + south),
+    data=df)
+  
+  return(list(reduced=reduced_model, full=full_model))
+}
+
+attrit_models_d <- run_attrit_model(final_df_d)
+anova(attrit_models_d$reduced, attrit_models_d$full)
+
+attrit_models_r <- run_attrit_model(final_df_r)
+anova(attrit_models_r$reduced, attrit_models_r$full)
+
+## Outliers (6.3)
+
