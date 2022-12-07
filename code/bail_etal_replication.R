@@ -15,46 +15,6 @@ RANDOM_SEED <- 352
 
 df <- readRDS("data/bail_etal_data.rds")
 
-## gen characteristics table
-tab <- df %>% 
-  mutate(age = 2016 - birth_year, 
-         female = as.numeric(gender==2)
-  )
-sum_vars <- c("age", "female", "northeast", "north_central", "south", "west")
-sum_stats <- tibble(
-  all_sample = tab %>% 
-    select(sum_vars) %>% 
-    summarise_all(~ mean(.x, na.rm=TRUE)) %>% unlist(),
-  R_sample = tab %>% filter(party_id_wave_1 == 2) %>% 
-    select(sum_vars) %>% 
-    summarise_all(~ mean(.x, na.rm=TRUE)) %>% unlist(),
-  D_sample = tab %>% filter(party_id_wave_1 == 1) %>% 
-    select(sum_vars) %>% 
-    summarise_all(~ mean(.x, na.rm=TRUE)) %>% unlist()
-)
-paper_sum_stats <- tibble(
-  all_study = c(50.49, 0.52, 0.18, 0.2, 0.39, 0.23),
-  R_study = c(50.72, 0.48, 0.16, 0.18, 0.44, 0.21),
-  D_study = c(50.31, 0.55, 0.21, 0.21, 0.34, 0.24),
-)
-
-sum_stats <- bind_cols(sum_stats, paper_sum_stats)
-sum_stats <- sum_stats %>% select(sort(colnames(sum_stats)))
-addtorow <- list()
-addtorow$pos <- list(0, 0)
-addtorow$command <- c(
-  "& \\multicolumn{2}{c}{All} & \\multicolumn{2}{c}{Democrats} & \\multicolumn{2}{c}{Republicans} \\\\", 
-  "\\cmidrule(lr){2-3} \\cmidule(lr){4-5} \\cmidule(lr){6-7} Replication & Paper  & Replication & Paper  & Replication & Paper \\\\"
-)
-sum_stats_tab <- xtable(sum_stats)
-print(
-  sum_stats_tab,
-  include.colnames=FALSE, include.rownames=FALSE, 
-  add.to.row = addtorow,
-  file = "output/bail_etal_sumstats.tex"
-)
-
-
 ## COMPLIANCE 
 # construct continuous compliance measure 
 df <- df %>% 
@@ -68,6 +28,53 @@ df <- df %>%
 # NOTE: posted data does not match results reported in the paper! 
 # in particular, we have a differing number of treated/bot followers/partially compliant
 # than are reported in the paper...
+
+
+## gen characteristics table
+tab <- df %>% 
+  mutate(age = 2016 - birth_year, 
+         female = as.numeric(gender==2)
+  )
+sum_vars <- c("age", "female", "northeast", "north_central", "south", "west", "treat", "bot_followers", "half_complier", "perfect_complier")
+sum_stats <- tibble(
+  all_sample = tab %>% 
+    select(sum_vars) %>% 
+    summarise_all(~ mean(.x, na.rm=TRUE)) %>% unlist(),
+  R_sample = tab %>% filter(party_id_wave_1 == 2) %>% 
+    select(sum_vars) %>% 
+    summarise_all(~ mean(.x, na.rm=TRUE)) %>% unlist(),
+  D_sample = tab %>% filter(party_id_wave_1 == 1) %>% 
+    select(sum_vars) %>% 
+    summarise_all(~ mean(.x, na.rm=TRUE)) %>% unlist()
+)
+
+# ds = 691, rs = 529
+# ds 416, 271, 211, 66
+# rs 316, 181, 121, 53
+
+paper_sum_stats <- tibble(
+  all_study = c(50.49, 0.52, 0.18, 0.2, 0.39, 0.23, 0.60, 0.37, 0.27, 0.10),
+  R_study = c(50.72, 0.48, 0.16, 0.18, 0.44, 0.21, 0.60, 0.34, 0.23, 0.10),
+  D_study = c(50.31, 0.55, 0.21, 0.21, 0.34, 0.24, 0.60, 0.39, 0.31, 0.10)
+)
+
+sum_stats <- bind_cols(sum_stats, paper_sum_stats)
+sum_stats <- sum_stats %>% select(sort(colnames(sum_stats)))
+sum_stats <- sum_stats %>% mutate(Covariate = sum_vars) %>% select(Covariate, everything())
+addtorow <- list()
+addtorow$pos <- list(0, 0)
+addtorow$command <- c(
+  "& \\multicolumn{2}{c}{All} & \\multicolumn{2}{c}{Democrats} & \\multicolumn{2}{c}{Republicans} \\\\", 
+  "\\cmidrule(lr){2-3} \\cmidrule(lr){4-5} \\cmidrule(lr){6-7} & Replication & Paper  & Replication & Paper  & Replication & Paper \\\\"
+)
+sum_stats_tab <- xtable(sum_stats)
+print(
+  sum_stats_tab,
+  include.colnames=FALSE, include.rownames=FALSE, 
+  add.to.row = addtorow,
+  file = "output/bail_etal_sumstats.tex"
+)
+
 
 ## OUTCOMES 
 # outcome measures 
@@ -292,16 +299,17 @@ fig3_plot <- function(ests, party){
       ), linewidth = .5, position = position_dodge(width = 1 / 2), colour = col
     ) + theme(
       axis.text = element_text(size = 12, face = "bold", colour = "black"),
-      plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+      plot.title = element_text(face = "bold", size = 18, hjust = 0.5),
       panel.grid.major = element_blank(),
       panel.grid.minor = element_blank(),
       panel.background = element_blank(),
-      axis.title = element_text(size = 12, colour = "black"),
+      axis.title = element_text(size = 14, colour = "black"),
       legend.position = "none",
       legend.key = element_blank(),
       legend.title = element_blank()
     ) +
-    ylim(c(-1, 1)) + labs(x = "", y = "") + coord_flip() + ggtitle(tit)
+   scale_y_continuous(breaks=c(-1, -0.5, 0, 0.5, 1), limits=c(-1, 1)) + labs(x = "", y = "") + 
+    coord_flip() + ggtitle(tit)
   return(po)
 }
 
@@ -315,7 +323,7 @@ d_ests <- bind_rows(
 )
 fig3_d_ests <- fig3_process_models(final_df_d, d_ests)
 fig3_d <- fig3_plot(fig3_d_ests, "D")
-ggsave("output/bail_etal_fig3_D.png", plot = fig3_d, width = 10, height = 6)
+ggsave("output/bail_etal_fig3_D.png", plot = fig3_d, width = 8, height = 5)
 fig3_d_ests_tab <- xtable(fig3_d_ests)
 print(fig3_d_ests_tab, file = "output/bail_etal_fig3_D_tab.tex")
 
@@ -327,7 +335,7 @@ r_ests <- bind_rows(
 )
 fig3_r_ests <- fig3_process_models(final_df_r, r_ests)
 fig3_r <- fig3_plot(fig3_r_ests, "R")
-ggsave("output/bail_etal_fig3_R.png", plot = fig3_r, width = 10, height = 6)
+ggsave("output/bail_etal_fig3_R.png", plot = fig3_r, width = 8, height = 5)
 fig3_r_ests_tab <- xtable(fig3_r_ests)
 print(fig3_r_ests_tab, file = "output/bail_etal_fig3_R_tab.tex")
 
