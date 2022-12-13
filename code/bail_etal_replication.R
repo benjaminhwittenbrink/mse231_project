@@ -53,9 +53,9 @@ sum_stats <- tibble(
 # rs 316, 181, 121, 53
 
 paper_sum_stats <- tibble(
-  all_study = c(50.49, 0.52, 0.18, 0.2, 0.39, 0.23, 0.60, 0.37, 0.27, 0.10),
-  R_study = c(50.72, 0.48, 0.16, 0.18, 0.44, 0.21, 0.60, 0.34, 0.23, 0.10),
-  D_study = c(50.31, 0.55, 0.21, 0.21, 0.34, 0.24, 0.60, 0.39, 0.31, 0.10)
+  all_study = c(50.49, 0.52, 0.18, 0.2, 0.39, 0.23, 0.600, 0.370, 0.272, 0.098),
+  R_study = c(50.72, 0.48, 0.16, 0.18, 0.44, 0.21, 0.597, 0.342, 0.229, 0.100),
+  D_study = c(50.31, 0.55, 0.21, 0.21, 0.34, 0.24, 0.602, 0.392, 0.305, 0.096)
 )
 
 sum_stats <- bind_cols(sum_stats, paper_sum_stats)
@@ -67,7 +67,7 @@ addtorow$command <- c(
   "& \\multicolumn{2}{c}{All} & \\multicolumn{2}{c}{Democrats} & \\multicolumn{2}{c}{Republicans} \\\\", 
   "\\cmidrule(lr){2-3} \\cmidrule(lr){4-5} \\cmidrule(lr){6-7} & Replication & Paper  & Replication & Paper  & Replication & Paper \\\\"
 )
-sum_stats_tab <- xtable(sum_stats)
+sum_stats_tab <- xtable(sum_stats, digits = 3)
 print(
   sum_stats_tab,
   include.colnames=FALSE, include.rownames=FALSE, 
@@ -274,7 +274,7 @@ library(ggplot2)
 library(xtable)
 
 fig3_plot <- function(ests, party){ 
-  col <- ifelse(party == "D", "blue", "red")
+  col <- ifelse(party == "D", "#0000FF", "#E50000")
   tit <- ifelse(party == "D", "Democrats", "Republicans")
   interval1 <- -qnorm((1-0.9)/2) # 90% multiplier 
   interval2 <- -qnorm((1-0.95)/2) # 95% multiplier
